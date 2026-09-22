@@ -1,7 +1,20 @@
 import sqlite3, os
 from datetime import datetime
 
-DB_NAME = os.environ.get("DB_PATH", "support_bot.db")
+# مسیر دیتابیس - اگه /data نبود، از مسیر فعلی استفاده کن
+DB_PATH = os.environ.get("DB_PATH", "support_bot.db")
+DB_DIR = os.path.dirname(DB_PATH)
+
+# ساخت پوشه اگه وجود نداره
+if DB_DIR and not os.path.exists(DB_DIR):
+    try:
+        os.makedirs(DB_DIR, exist_ok=True)
+    except Exception as e:
+        print(f"⚠️ نمی‌تونم پوشه بسازم: {e}")
+        DB_PATH = "support_bot.db"
+
+DB_NAME = DB_PATH
+print(f"📁 مسیر دیتابیس: {DB_NAME}")
 
 
 def init_db():
