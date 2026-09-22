@@ -237,6 +237,7 @@ async def route_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     init_db()
     app = Application.builder().token(TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stats", admin_panel))
     app.add_handler(CommandHandler("users", users_list))
@@ -248,8 +249,9 @@ def main():
                              filters.VOICE | filters.VIDEO | filters.AUDIO | filters.Sticker.ALL),
         route_message
     ))
+
     print("🤖 ربات روشن شد...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 
 if __name__ == '__main__':
