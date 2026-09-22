@@ -70,19 +70,20 @@ async def send_content(bot, chat_id, content_type, content, caption=None, reply_
         kwargs["reply_to_message_id"] = reply_to
 
     if content_type == "text":
-        await bot.send_message(text=content, **kwargs)
+        return await bot.send_message(text=content, **kwargs)
     elif content_type == "photo":
-        await bot.send_photo(photo=content, caption=caption, **kwargs)
+        return await bot.send_photo(photo=content, caption=caption, **kwargs)
     elif content_type == "document":
-        await bot.send_document(document=content, caption=caption, **kwargs)
+        return await bot.send_document(document=content, caption=caption, **kwargs)
     elif content_type == "voice":
-        await bot.send_voice(voice=content, caption=caption, **kwargs)
+        return await bot.send_voice(voice=content, caption=caption, **kwargs)
     elif content_type == "video":
-        await bot.send_video(video=content, caption=caption, **kwargs)
+        return await bot.send_video(video=content, caption=caption, **kwargs)
     elif content_type == "audio":
-        await bot.send_audio(audio=content, caption=caption, **kwargs)
+        return await bot.send_audio(audio=content, caption=caption, **kwargs)
     elif content_type == "sticker":
-        await bot.send_sticker(sticker=content, **kwargs)
+        return await bot.send_sticker(sticker=content, **kwargs)
+    return None
 
 
 # ============ پیام کاربر ============
@@ -109,26 +110,40 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
     try:
+        # ارسال هدر به ادمین
         header_msg = await context.bot.send_message(
             chat_id=ADMIN_ID, text=header, parse_mode='Markdown'
         )
+
+        # ارسال محتوا به ادمین
         admin_msg = await send_content(
             context.bot, ADMIN_ID, content_type, content,
             caption=message.caption, reply_to=header_msg.message_id
         )
+
+        # چک کردن اینکه پیام واقعاً ارسال شده
+        if admin_msg is None:
+            logger.error("ارسال پیام به ادمین ناموفق بود")
+            await message.reply_text("❌ خطا در ارسال پیام به پشتیبانی.")
+            return
+
+        # ذخیره در دیتابیس
         save_message(user.id, admin_msg.message_id, message.message_id,
                      content_type, str(content), is_from_admin=0)
         increment_message_count(user.id)
+
         await message.reply_text("✅ پیام شما ارسال شد.\nبه‌زودی پاسخ داده می‌شود.")
         context.user_data['waiting_for_message'] = False
+
     except Exception as e:
         logger.error(f"خطا: {e}")
-        await message.reply_text("❌ خطا در ارسال پیام.")
+        await message.reply_text(f"❌ خطا در ارسال پیام: {e}")
 
 
 # ============ پاسخ ادمین ============
 async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
+
     if not message.reply_to_message:
         await message.reply_text("⚠️ روی پیام کاربر **ریپلای** بزن.", parse_mode='Markdown')
         return
@@ -137,7 +152,10 @@ async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = get_user_by_admin_msg(replied_id)
 
     if not user_id:
-        await message.reply_text("❌ کاربر پیدا نشد. روی پیام اصلی کاربر ریپلای بزن.")
+        await message.reply_text(
+            "❌ کاربر پیدا نشد.\n"
+            "روی **پیام اصلی کاربر** (نه روی هدر) ریپلای بزن."
+        )
         return
 
     content_type, content = extract_content(message)
@@ -146,13 +164,19 @@ async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     try:
-        await send_content(
+        result = await send_content(
             context.bot, user_id, content_type, content,
             caption=f"📬 **پاسخ پشتیبانی:**\n\n{message.caption or ''}"
         )
+
+        if result is None:
+            await message.reply_text("❌ خطا در ارسال پاسخ.")
+            return
+
         save_message(user_id, message.message_id, 0, content_type,
                      str(content), is_from_admin=1)
         await message.reply_text("✅ پاسخ ارسال شد.")
+
     except Exception as e:
         logger.error(f"خطا: {e}")
         await message.reply_text(f"❌ خطا: {e}")
