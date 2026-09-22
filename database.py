@@ -1,15 +1,8 @@
 import sqlite3, os
 from datetime import datetime
 
-# مسیر دیتابیس با بررسی وجود پوشه
-DB_PATH = os.environ.get("DB_PATH", "support_bot.db")
-
-# اگه پوشه /data وجود نداشت، از مسیر پیش‌فرض استفاده کن
-if DB_PATH.startswith("/data") and not os.path.exists("/data"):
-    print("⚠️ پوشه /data وجود نداره، از مسیر پیش‌فرض استفاده می‌شه")
-    DB_PATH = "support_bot.db"
-
-DB_NAME = DB_PATH
+# دیتابیس توی مسیر /app ساخته میشه که قطعاً وجود داره
+DB_NAME = "/app/support_bot.db"
 print(f"📁 مسیر دیتابیس: {DB_NAME}")
 
 
