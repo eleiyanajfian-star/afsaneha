@@ -6,10 +6,9 @@ from telegram.ext import (
 )
 from database import (
     init_db, add_or_update_user, increment_message_count,
-    save_message, get_user_by_admin_msg, get_stats, get_all_users
+    save_message, get_user_by_admin_msg
 )
 
-# ============ تنظیمات ============
 TOKEN = "8840828687:AAFVSbLqr_fgwZxYSBkwmrOOUvqjuktPOHE"
 ADMIN_ID = 8854675840
 
@@ -20,7 +19,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ============ /start ============
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     add_or_update_user(user.id, user.username or "", user.full_name)
@@ -33,7 +31,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# ============ دکمه پشتیبانی ============
 async def contact_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -44,49 +41,6 @@ async def contact_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# ============ استخراج محتوا ============
-def extract_content(message):
-    if message.text:
-        return "text", message.text
-    if message.photo:
-        return "photo", message.photo[-1].file_id
-    if message.document:
-        return "document", message.document.file_id
-    if message.voice:
-        return "voice", message.voice.file_id
-    if message.video:
-        return "video", message.video.file_id
-    if message.audio:
-        return "audio", message.audio.file_id
-    if message.sticker:
-        return "sticker", message.sticker.file_id
-    return None, None
-
-
-# ============ ارسال محتوا ============
-async def send_content(bot, chat_id, content_type, content, caption=None, reply_to=None):
-    kwargs = {"chat_id": chat_id}
-    if reply_to:
-        kwargs["reply_to_message_id"] = reply_to
-
-    if content_type == "text":
-        return await bot.send_message(text=content, **kwargs)
-    elif content_type == "photo":
-        return await bot.send_photo(photo=content, caption=caption, **kwargs)
-    elif content_type == "document":
-        return await bot.send_document(document=content, caption=caption, **kwargs)
-    elif content_type == "voice":
-        return await bot.send_voice(voice=content, caption=caption, **kwargs)
-    elif content_type == "video":
-        return await bot.send_video(video=content, caption=caption, **kwargs)
-    elif content_type == "audio":
-        return await bot.send_audio(audio=content, caption=caption, **kwargs)
-    elif content_type == "sticker":
-        return await bot.send_sticker(sticker=content, **kwargs)
-    return None
-
-
-# ============ پیام کاربر ============
 async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     message = update.message
@@ -96,38 +50,57 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         await message.reply_text("برای ارسال پیام به پشتیبانی، ابتدا /start رو بزن.")
         return
 
-    content_type, content = extract_content(message)
-    if not content_type:
+    # فقط متن
+    if message.text:
+        content_type = "text"
+        content = message.text
+    elif message.photo:
+        content_type = "photo"
+        content = message.photo[-1].file_id
+    elif message.document:
+        content_type = "document"
+        content = message.document.file_id
+    elif message.voice:
+        content_type = "voice"
+        content = message.voice.file_id
+    elif message.video:
+        content_type = "video"
+        content = message.video.file_id
+    else:
         await message.reply_text("❌ این نوع پیام پشتیبانی نمی‌شود.")
         return
 
     header = (
-        f"📩 **پیام جدید**\n\n"
+        f"📩 پیام جدید\n\n"
         f"👤 {user.full_name}\n"
-        f"🆔 `{user.id}`\n"
-        f"🔗 @{user.username if user.username else 'ندارد'}\n"
-        f"━━━━━━━━━━━━━━━"
+        f"🆔 {user.id}\n"
+        f"🔗 @{user.username if user.username else 'ندارد'}"
     )
 
     try:
-        # ارسال هدر به ادمین
-        header_msg = await context.bot.send_message(
-            chat_id=ADMIN_ID, text=header, parse_mode='Markdown'
-        )
+        # ارسال هدر (بدون Markdown)
+        header_msg = await context.bot.send_message(chat_id=ADMIN_ID, text=header)
 
-        # ارسال محتوا به ادمین
-        admin_msg = await send_content(
-            context.bot, ADMIN_ID, content_type, content,
-            caption=message.caption, reply_to=header_msg.message_id
-        )
+        # ارسال محتوا
+        if content_type == "text":
+            admin_msg = await context.bot.send_message(chat_id=ADMIN_ID, text=content,
+                                                       reply_to_message_id=header_msg.message_id)
+        elif content_type == "photo":
+            admin_msg = await context.bot.send_photo(chat_id=ADMIN_ID, photo=content,
+                                                      caption=message.caption or "",
+                                                      reply_to_message_id=header_msg.message_id)
+        elif content_type == "document":
+            admin_msg = await context.bot.send_document(chat_id=ADMIN_ID, document=content,
+                                                         caption=message.caption or "",
+                                                         reply_to_message_id=header_msg.message_id)
+        elif content_type == "voice":
+            admin_msg = await context.bot.send_voice(chat_id=ADMIN_ID, voice=content,
+                                                      reply_to_message_id=header_msg.message_id)
+        elif content_type == "video":
+            admin_msg = await context.bot.send_video(chat_id=ADMIN_ID, video=content,
+                                                      caption=message.caption or "",
+                                                      reply_to_message_id=header_msg.message_id)
 
-        # چک کردن اینکه پیام واقعاً ارسال شده
-        if admin_msg is None:
-            logger.error("ارسال پیام به ادمین ناموفق بود")
-            await message.reply_text("❌ خطا در ارسال پیام به پشتیبانی.")
-            return
-
-        # ذخیره در دیتابیس
         save_message(user.id, admin_msg.message_id, message.message_id,
                      content_type, str(content), is_from_admin=0)
         increment_message_count(user.id)
@@ -136,141 +109,62 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.user_data['waiting_for_message'] = False
 
     except Exception as e:
-        logger.error(f"خطا: {e}")
-        await message.reply_text(f"❌ خطا در ارسال پیام: {e}")
+        logger.error(f"خطا در handle_user_message: {e}", exc_info=True)
+        await message.reply_text(f"❌ خطا: {e}")
 
 
-# ============ پاسخ ادمین ============
 async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
 
     if not message.reply_to_message:
-        await message.reply_text("⚠️ روی پیام کاربر **ریپلای** بزن.", parse_mode='Markdown')
+        await message.reply_text("⚠️ روی پیام کاربر ریپلای بزن.")
         return
 
     replied_id = message.reply_to_message.message_id
     user_id = get_user_by_admin_msg(replied_id)
 
     if not user_id:
-        await message.reply_text(
-            "❌ کاربر پیدا نشد.\n"
-            "روی **پیام اصلی کاربر** (نه روی هدر) ریپلای بزن."
-        )
-        return
-
-    content_type, content = extract_content(message)
-    if not content_type:
-        await message.reply_text("❌ این نوع پیام پشتیبانی نمی‌شود.")
+        await message.reply_text("❌ کاربر پیدا نشد. روی پیام اصلی کاربر ریپلای بزن.")
         return
 
     try:
-        result = await send_content(
-            context.bot, user_id, content_type, content,
-            caption=f"📬 **پاسخ پشتیبانی:**\n\n{message.caption or ''}"
-        )
-
-        if result is None:
-            await message.reply_text("❌ خطا در ارسال پاسخ.")
+        if message.text:
+            await context.bot.send_message(chat_id=user_id, text=f"📬 پاسخ پشتیبانی:\n\n{message.text}")
+        elif message.photo:
+            await context.bot.send_photo(chat_id=user_id, photo=message.photo[-1].file_id,
+                                          caption=f"📬 پاسخ پشتیبانی:\n\n{message.caption or ''}")
+        elif message.document:
+            await context.bot.send_document(chat_id=user_id, document=message.document.file_id,
+                                             caption=f"📬 پاسخ پشتیبانی:\n\n{message.caption or ''}")
+        else:
+            await message.reply_text("❌ این نوع پیام پشتیبانی نمی‌شود.")
             return
 
-        save_message(user_id, message.message_id, 0, content_type,
-                     str(content), is_from_admin=1)
+        save_message(user_id, message.message_id, 0, "text", str(message.text or ""), is_from_admin=1)
         await message.reply_text("✅ پاسخ ارسال شد.")
 
     except Exception as e:
-        logger.error(f"خطا: {e}")
+        logger.error(f"خطا در handle_admin_reply: {e}", exc_info=True)
         await message.reply_text(f"❌ خطا: {e}")
 
 
-# ============ پنل ادمین ============
-async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    stats = get_stats()
-    text = (
-        f"📊 **پنل مدیریت**\n\n"
-        f"👥 کاربران: `{stats['total_users']}`\n"
-        f"🟢 فعال امروز: `{stats['active_today']}`\n"
-        f"📩 پیام‌های کاربران: `{stats['total_user_msgs']}`\n"
-        f"📤 پاسخ‌های شما: `{stats['total_admin_msgs']}`\n\n"
-        f"دستورات:\n"
-        f"/stats - آمار\n"
-        f"/users - لیست کاربران\n"
-        f"/broadcast - پیام همگانی\n"
-        f"/cancel - لغو"
-    )
-    await update.message.reply_text(text, parse_mode='Markdown')
-
-
-async def users_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    users = get_all_users(limit=30)
-    if not users:
-        await update.message.reply_text("هنوز کاربری ثبت نشده.")
-        return
-    text = "👥 **آخرین کاربران:**\n\n"
-    for uid, name, username, count, last in users:
-        text += f"• {name} (`{uid}`)\n  📩 {count} پیام | @{username or '—'}\n\n"
-    await update.message.reply_text(text[:4000], parse_mode='Markdown')
-
-
-async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    context.user_data['broadcast_mode'] = True
-    await update.message.reply_text("📢 پیام همگانی رو بفرست.\nبرای لغو /cancel رو بزن.")
-
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
-    await update.message.reply_text("❌ لغو شد.")
-
-
-async def do_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.user_data.get('broadcast_mode'):
-        return
-    users = get_all_users(limit=10000)
-    content_type, content = extract_content(update.message)
-    if not content_type:
-        return
-    success, failed = 0, 0
-    for uid, *_ in users:
-        try:
-            await send_content(context.bot, uid, content_type, content, caption=update.message.caption)
-            success += 1
-        except:
-            failed += 1
-    await update.message.reply_text(f"✅ ارسال شد: {success}\n❌ ناموفق: {failed}")
-    context.user_data['broadcast_mode'] = False
-
-
-# ============ روتر ============
 async def route_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user.id == ADMIN_ID:
-        if context.user_data.get('broadcast_mode'):
-            await do_broadcast(update, context)
-        else:
-            await handle_admin_reply(update, context)
+        await handle_admin_reply(update, context)
     else:
         await handle_user_message(update, context)
 
 
-# ============ main ============
 def main():
     init_db()
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("stats", admin_panel))
-    app.add_handler(CommandHandler("users", users_list))
-    app.add_handler(CommandHandler("broadcast", broadcast_start))
-    app.add_handler(CommandHandler("cancel", cancel))
     app.add_handler(CallbackQueryHandler(contact_support, pattern="^contact_support$"))
     app.add_handler(MessageHandler(
         ~filters.COMMAND & (filters.TEXT | filters.PHOTO | filters.Document.ALL |
-                             filters.VOICE | filters.VIDEO | filters.AUDIO | filters.Sticker.ALL),
+                             filters.VOICE | filters.VIDEO),
         route_message
     ))
 
