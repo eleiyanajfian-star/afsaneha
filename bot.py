@@ -13,8 +13,7 @@ from database import (
 # ============ تنظیمات ============
 TOKEN = "8840828687:AAFVSbLqr_fgwZxYSBkwmrOOUvqjuktPOHE"
 ADMIN_ID = 8854675840
-CHANNEL_ID = -1001234567890  # ← آیدی عددی کانال خود را اینجا بگذارید
-
+CHANNEL_ID = -1004437686640
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
